@@ -11,6 +11,7 @@ local settings = {
   
   filename_replace = "",
 
+
 --[=====[ START OF SAMPLE REPLACE, to use remove start and end line
   --Sample replace: replaces underscore to space on all files
   --for mp4 and webm; remove extension, remove brackets and surrounding whitespace, change dot between alphanumeric to space
@@ -47,6 +48,14 @@ local settings = {
     ]
   ]],
 
+  all_key = [[
+    [
+      "a", "b", "c", "d", "e", "f", "g", "h", "i", 
+      "j", "k", "l", "m", "n", "o", "p", "q", "r",
+      "s", "t", "u", "v", "x", "y", "z"
+    ]
+  ]],
+
   --loadfiles at startup if there is 0 or 1 items in playlist, if 0 uses worḱing dir for files
   loadfiles_on_start = false,
 
@@ -60,10 +69,11 @@ local settings = {
   alphanumsort = true,
 
   --linux=true, windows=false
-  linux_over_windows = true,
+  linux_over_windows = false,
 
   --path where you want to save playlists. Do not use shortcuts like ~ or $HOME
-  playlist_savepath = "/home/anon/Documents/",
+  --playlist_savepath = "/home/anon/Documents/",
+  playlist_savepath = "./",
 
 
   --show playlist or filename every time a new file is loaded 
@@ -100,13 +110,13 @@ local settings = {
   showamount = 16,
 
   --font size scales by window, if false requires larger font and padding sizes
-  scale_playlist_by_window=true,
+  scale_playlist_by_window=false,
   --playlist ass style overrides inside curly brackets, \keyvalue is one field, extra \ for escape in lua
   --example {\\fnUbuntu\\fs10\\b0\\bord1} equals: font=Ubuntu, size=10, bold=no, border=1
   --read http://docs.aegisub.org/3.2/ASS_Tags/ for reference of tags
   --undeclared tags will use default osd settings
   --these styles will be used for the whole playlist. More specific styling will need to be hacked in
-  style_ass_tags = "",
+  style_ass_tags = "{\\fs25}",
   --paddings from top left corner
   text_padding_x = 10,
   text_padding_y = 30,
@@ -126,7 +136,7 @@ local settings = {
   --%cursor = position of navigation
   --%plen = playlist length
   --%N = newline
-  playlist_header = "Playing: %mediatitle%N%NPlaylist - %cursor/%plen",
+  playlist_header = "Playing: %mediatitle%N%NPlaylist - %cursor/%plen - Search key : %searchkey",
 
   --playlist display signs, prefix is before filename, and suffix after
   --currently playing file 
@@ -182,6 +192,7 @@ end
 
 --parse loadfiles json
 settings.loadfiles_filetypes = utils.parse_json(settings.loadfiles_filetypes)
+settings.all_key = utils.parse_json(settings.all_key)
 
 --global variables
 local playlist_visible = false
@@ -260,9 +271,62 @@ function on_closed()
   filename = nil
 end
 
+local pm = {}
+local pl = {}
+local searchKey = ''
+local needrefresh = true
+local first = true
+
 function refresh_globals()
+  
   pos = mp.get_property_number('playlist-pos', 0)
   plen = mp.get_property_number('playlist-count', 0)
+
+  if first or #pl==1 then
+    pl = {}
+    for i=1,plen do
+      local _, name = nil
+      name = mp.get_property('playlist/'..(i-1)..'/filename')
+      if string.sub(name, 1, 1) == '/' or name:match("^%a:[/\\]") then
+        _, name = utils.split_path(name)
+      end
+        table.insert(pl ,string.lower(name))
+        --pl[i-1] = name
+    end
+    first = false
+  end
+  if #pl >=1 and ( needrefresh or #pm == 1 ) then
+    pm = {}
+    --msg.info('ref '..plen)
+    --for i=1,#pl do
+    for i,name in pairs(pl) do
+      --local name = pl[i]
+       
+      if string.find(name,string.lower(searchKey)) then
+        --local ii = {[i] = name }
+        --msg.info(i..' - '..name)
+        --msg.info(pl[1])
+        --msg.info(pl[2])
+
+        table.insert(pm ,i-1)
+      end
+    end
+    needrefresh = false
+    --  for i,k in pairs(pm) do
+    --    msg.info(i..' - '..k)
+    --  end
+  end
+ -- if cursor >= #pm then
+  --  cursor = #pm - 1
+  --end
+ -- for i,k in pairs(pm) do
+  --  for j,m in pairs(k) do
+  --    msg.info(i..' - '..j..' - '..m)
+  --  end
+  --  msg.info(i..' - '..k)
+  --end
+  --local title = mp.get_property('playlist/'..i..'/title')
+  --local name = mp.get_property('playlist/'..i..'/filename')
 end
 
 function escapepath(dir, escapechar)
@@ -314,10 +378,16 @@ end
 function get_name_from_index(i, notitle)
   refresh_globals()
   if plen <= i then msg.error("no index in playlist", i, "length", plen); return nil end
+  if #pm <= i then msg.error("no index in playlist sub", i, "length", #pm); return nil end
   local _, name = nil
-  local title = mp.get_property('playlist/'..i..'/title')
-  local name = mp.get_property('playlist/'..i..'/filename')
-
+  --local title = mp.get_property('playlist/'..i..'/title')
+  --local name = mp.get_property('playlist/'..i..'/filename')
+  --msg.info(i+1)
+  --msg.info(pm[i+1])
+  local title = mp.get_property('playlist/'..pm[i+1]..'/title')
+  local name = mp.get_property('playlist/'..pm[i+1]..'/filename')
+  --msg.info(title)
+  --msg.info(name)
   --check if file has a media title stored or as property
   if not title and settings.prefer_titles then
     local mtitle = mp.get_property('media-title')
@@ -384,7 +454,9 @@ end
 function parse_string_props(string)
   return string:gsub("%%N", "\\N")
                :gsub("%%pos", mp.get_property_number("playlist-pos",0)+1)
-               :gsub("%%plen", mp.get_property("playlist-count"))
+               :gsub("%%searchkey", searchKey)
+               --:gsub("%%plen", mp.get_property("playlist-count"))
+               :gsub("%%plen", #pm)
                :gsub("%%cursor", cursor+1)
                :gsub("%%mediatitle", stripfilename(mp.get_property("media-title"), true))
                :gsub("%%filename", stripfilename(mp.get_property("filename")))
@@ -400,21 +472,30 @@ function draw_playlist()
   if settings.playlist_header ~= "" then
     ass:append(parse_string_props(settings.playlist_header).."\\N")
   end
+  if cursor > #pm then cursor = #pm end
   local start = cursor - math.floor(settings.showamount/2)
   local showall = false
   local showrest = false
   if start<0 then start=0 end
-  if plen <= settings.showamount then
+  --if plen <= settings.showamount then
+  if #pm <= settings.showamount then
     start=0
     showall=true
   end
-  if start > math.max(plen-settings.showamount-1, 0) then 
-    start=plen-settings.showamount
+  --if start > math.max(plen-settings.showamount-1, 0) then 
+  --  start=plen-settings.showamount
+  --  showrest=true
+  --end
+  if start > math.max(#pm-settings.showamount-1, 0) then 
+    start=#pm-settings.showamount
     showrest=true
   end
+  --msg.info('stat:'..start)
   if start > 0 and not showall then ass:append(settings.playlist_sliced_prefix.."\\N") end
   for index=start,start+settings.showamount-1,1 do
     if index == plen then break end
+    if index == #pm then break end
+    if 0 == #pm then break end
 
     local prefix, suffix = get_fixes_by_index(index)
     ass:append(prefix..get_name_from_index(index)..suffix.."\\N")
@@ -474,12 +555,14 @@ end
 function moveup()
   refresh_globals()
   if plen == 0 then return end
+  if #pm == 0 then return end
   if cursor~=0 then
     if tag then mp.commandv("playlist-move", cursor,cursor-1) end
     cursor = cursor-1
   elseif settings.loop_cursor then
-    if tag then mp.commandv("playlist-move", cursor,plen) end
-    cursor = plen-1
+    --if tag then mp.commandv("playlist-move", cursor,plen) end
+    if tag then mp.commandv("playlist-move", cursor,#pm) end
+    cursor = #pm-1
   end
   showplaylist()
 end
@@ -487,10 +570,16 @@ end
 function movedown()
   refresh_globals()
   if plen == 0 then return end
-  if cursor ~= plen-1 then
+  if #pm == 0 then return end
+  --if cursor ~= plen-1 then
+  --  if tag then mp.commandv("playlist-move", cursor,cursor+2) end
+  --  cursor = cursor + 1
+  --else
+  if cursor ~= #pm-1 then
     if tag then mp.commandv("playlist-move", cursor,cursor+2) end
     cursor = cursor + 1
   elseif settings.loop_cursor then
+    --if tag then mp.commandv("playlist-move", cursor,0) end
     if tag then mp.commandv("playlist-move", cursor,0) end
     cursor = 0
   end
@@ -501,8 +590,11 @@ function jumptofile()
   refresh_globals()
   if plen == 0 then return end
   tag = nil
+  msg.info(cursor)
+  msg.info(pm[cursor])
   if cursor ~= pos then
-    mp.set_property("playlist-pos", cursor)
+    --mp.set_property("playlist-pos", cursor)
+    mp.set_property("playlist-pos", pm[cursor+1])
   else
     if cursor~=plen-1 then
       cursor = cursor + 1
@@ -663,7 +755,38 @@ function add_keybinds()
   mp.add_forced_key_binding('DOWN', 'movedown', movedown, "repeatable")
   mp.add_forced_key_binding('RIGHT', 'tagcurrent', tagcurrent)
   mp.add_forced_key_binding('ENTER', 'jumptofile', jumptofile)
-  mp.add_forced_key_binding('BS', 'removefile', removefile, "repeatable")
+  --mp.add_forced_key_binding('BS', 'removefile', removefile, "repeatable")
+  for i,v in pairs(settings.all_key) do
+    --msg.info('-----'..v)
+    mp.add_forced_key_binding(v, v..'keyserach', function() addtoserach(v) end, "repeatable")
+    mp.add_forced_key_binding(string.upper(v), string.upper(v)..'keyserach', function() addtoserach(string.upper(v)) end, "repeatable")
+  end
+  mp.add_forced_key_binding('BS', 'backspacekeyserach', removeLetter, "repeatable")
+  mp.add_forced_key_binding('SPACE', 'spacekeyserach',  function() addtoserach(' ') end, "repeatable")
+end
+function removeLetter( )
+  --msg.info('len'..#searchKey)
+  if #searchKey <= 1 then
+    searchKey = ''
+  else
+    --msg.info('ss--'..string.sub(searchKey,0,-2))
+    searchKey = string.sub(searchKey,0,-2)
+  end
+  needrefresh = true
+  draw_playlist()
+  keybindstimer:kill()
+end
+
+function addtoserach(letter)
+  --msg.info(searchKey)
+  if searchKey then
+    searchKey = searchKey..letter
+  else
+    searchKey = letter
+  end
+  needrefresh = true
+  draw_playlist()
+  keybindstimer:kill()
 end
 
 function remove_keybinds()
@@ -676,6 +799,16 @@ function remove_keybinds()
     mp.remove_key_binding('tagcurrent')
     mp.remove_key_binding('jumptofile')
     mp.remove_key_binding('removefile')
+    for i,v in pairs(settings.all_key) do
+      --msg.info('-----'..v)
+      mp.remove_key_binding(v..'keyserach')
+      mp.remove_key_binding(string.upper(v)..'keyserach')
+      
+    end
+    mp.remove_key_binding('backspacekeyserach')
+    mp.remove_key_binding('spacekeyserach')
+    
+    
   end
 end
 
@@ -731,10 +864,10 @@ end
 
 mp.register_script_message("playlistmanager", handlemessage)
 
-mp.add_key_binding("CTRL+p", "sortplaylist", sortplaylist)
-mp.add_key_binding("CTRL+P", "shuffleplaylist", shuffleplaylist)
-mp.add_key_binding("P", "loadfiles", playlist)
-mp.add_key_binding("p", "saveplaylist", save_playlist)
+--mp.add_key_binding("CTRL+p", "sortplaylist", sortplaylist)
+--mp.add_key_binding("CTRL+P", "shuffleplaylist", shuffleplaylist)
+--mp.add_key_binding("P", "loadfiles", playlist)
+--mp.add_key_binding("p", "saveplaylist", save_playlist)
 mp.add_key_binding("SHIFT+ENTER", "showplaylist", toggle_playlist)
 
 mp.register_event("file-loaded", on_loaded)
