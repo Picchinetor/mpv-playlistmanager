@@ -11,7 +11,6 @@ local settings = {
   
   filename_replace = "",
 
-
 --[=====[ START OF SAMPLE REPLACE, to use remove start and end line
   --Sample replace: replaces underscore to space on all files
   --for mp4 and webm; remove extension, remove brackets and surrounding whitespace, change dot between alphanumeric to space
@@ -74,7 +73,6 @@ local settings = {
   --path where you want to save playlists. Do not use shortcuts like ~ or $HOME
   --playlist_savepath = "/home/anon/Documents/",
   playlist_savepath = "./",
-
 
   --show playlist or filename every time a new file is loaded 
   --2 shows playlist, 1 shows current file(filename strip applied) as osd text, 0 shows nothing
@@ -297,36 +295,13 @@ function refresh_globals()
   end
   if #pl >=1 and ( needrefresh or #pm == 1 ) then
     pm = {}
-    --msg.info('ref '..plen)
-    --for i=1,#pl do
     for i,name in pairs(pl) do
-      --local name = pl[i]
-       
       if string.find(name,string.lower(searchKey)) then
-        --local ii = {[i] = name }
-        --msg.info(i..' - '..name)
-        --msg.info(pl[1])
-        --msg.info(pl[2])
-
         table.insert(pm ,i-1)
       end
     end
     needrefresh = false
-    --  for i,k in pairs(pm) do
-    --    msg.info(i..' - '..k)
-    --  end
   end
- -- if cursor >= #pm then
-  --  cursor = #pm - 1
-  --end
- -- for i,k in pairs(pm) do
-  --  for j,m in pairs(k) do
-  --    msg.info(i..' - '..j..' - '..m)
-  --  end
-  --  msg.info(i..' - '..k)
-  --end
-  --local title = mp.get_property('playlist/'..i..'/title')
-  --local name = mp.get_property('playlist/'..i..'/filename')
 end
 
 function escapepath(dir, escapechar)
@@ -380,14 +355,8 @@ function get_name_from_index(i, notitle)
   if plen <= i then msg.error("no index in playlist", i, "length", plen); return nil end
   if #pm <= i then msg.error("no index in playlist sub", i, "length", #pm); return nil end
   local _, name = nil
-  --local title = mp.get_property('playlist/'..i..'/title')
-  --local name = mp.get_property('playlist/'..i..'/filename')
-  --msg.info(i+1)
-  --msg.info(pm[i+1])
   local title = mp.get_property('playlist/'..pm[i+1]..'/title')
   local name = mp.get_property('playlist/'..pm[i+1]..'/filename')
-  --msg.info(title)
-  --msg.info(name)
   --check if file has a media title stored or as property
   if not title and settings.prefer_titles then
     local mtitle = mp.get_property('media-title')
@@ -765,11 +734,9 @@ function add_keybinds()
   mp.add_forced_key_binding('SPACE', 'spacekeyserach',  function() addtoserach(' ') end, "repeatable")
 end
 function removeLetter( )
-  --msg.info('len'..#searchKey)
   if #searchKey <= 1 then
     searchKey = ''
   else
-    --msg.info('ss--'..string.sub(searchKey,0,-2))
     searchKey = string.sub(searchKey,0,-2)
   end
   needrefresh = true
@@ -778,7 +745,6 @@ function removeLetter( )
 end
 
 function addtoserach(letter)
-  --msg.info(searchKey)
   if searchKey then
     searchKey = searchKey..letter
   else
@@ -800,7 +766,6 @@ function remove_keybinds()
     mp.remove_key_binding('jumptofile')
     mp.remove_key_binding('removefile')
     for i,v in pairs(settings.all_key) do
-      --msg.info('-----'..v)
       mp.remove_key_binding(v..'keyserach')
       mp.remove_key_binding(string.upper(v)..'keyserach')
       
