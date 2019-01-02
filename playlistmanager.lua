@@ -174,6 +174,7 @@ local settings = {
   prefix_filenumber_suffix = ' - '
 
 }
+
 local opts = require("mp.options")
 opts.read_options(settings, "playlistmanager")
 
@@ -357,6 +358,7 @@ function get_name_from_index(i, notitle)
   local _, name = nil
   local title = mp.get_property('playlist/'..pm[i+1]..'/title')
   local name = mp.get_property('playlist/'..pm[i+1]..'/filename')
+  --msg.info(name)
   --check if file has a media title stored or as property
   if not title and settings.prefer_titles then
     local mtitle = mp.get_property('media-title')
@@ -503,6 +505,7 @@ tag=nil
 function tagcurrent()
   refresh_globals()
   if plen == 0 then return end
+  if searchKey ~= '' then return end
   if not tag then
     tag=cursor
   else
@@ -526,13 +529,30 @@ function moveup()
   if plen == 0 then return end
   if #pm == 0 then return end
   if cursor~=0 then
-    if tag then mp.commandv("playlist-move", cursor,cursor-1) end
+    if tag then 
+      mp.commandv("playlist-move", cursor,cursor-1)
+      local su = pl[cursor+1]
+      pl[cursor+1] = pl[cursor] 
+      pl[cursor] = su
+    end
     cursor = cursor-1
   elseif settings.loop_cursor then
     --if tag then mp.commandv("playlist-move", cursor,plen) end
-    if tag then mp.commandv("playlist-move", cursor,#pm) end
+    if tag then
+     mp.commandv("playlist-move", cursor,#pm) 
+      local su = pl[1]
+      for i=2,#pl do 
+        pl[i-1] = pl[i] 
+      end
+      pl[#pm] = su
+    end
     cursor = #pm-1
   end
+  for k,v in pairs(pl) do
+    msg.info(k)
+    msg.info(v)
+  end
+  needrefresh = true 
   showplaylist()
 end
 
@@ -545,13 +565,31 @@ function movedown()
   --  cursor = cursor + 1
   --else
   if cursor ~= #pm-1 then
-    if tag then mp.commandv("playlist-move", cursor,cursor+2) end
+    if tag then 
+      mp.commandv("playlist-move", cursor,cursor+2) 
+      local su = pl[cursor+1]
+      pl[cursor+1] = pl[cursor+2] 
+      pl[cursor+2] = su
+    end
     cursor = cursor + 1
   elseif settings.loop_cursor then
     --if tag then mp.commandv("playlist-move", cursor,0) end
-    if tag then mp.commandv("playlist-move", cursor,0) end
+    if tag then 
+      mp.commandv("playlist-move", cursor,0)
+      local su = pl[cursor+1]
+      for i=#pl,1,-1 do 
+        pl[i] = pl[i-1] 
+      end
+      pl[1] = su
+    end
     cursor = 0
   end
+  
+  for k,v in pairs(pl) do
+    msg.info(k)
+    msg.info(v)
+  end
+  needrefresh = true 
   showplaylist()
 end
 
@@ -734,6 +772,9 @@ function add_keybinds()
   mp.add_forced_key_binding('SPACE', 'spacekeyserach',  function() addtoserach(' ') end, "repeatable")
 end
 function removeLetter( )
+  if tag then
+    return
+  end
   if #searchKey <= 1 then
     searchKey = ''
   else
@@ -745,6 +786,9 @@ function removeLetter( )
 end
 
 function addtoserach(letter)
+  if tag then
+    return
+  end
   if searchKey then
     searchKey = searchKey..letter
   else
